@@ -1,7 +1,7 @@
 /*
  * insert.c
  *
- * insert questions and answers
+ * quiz: insert questions and answers
  *
  * Copyright Pierre Forstmann 2022
  */
@@ -13,9 +13,36 @@
 #define	ANSWER_MAX_LENGTH	80
 #define MAX_ANSWER_NB		3
 
+static void begin_transaction(sqlite3 *db)
+{
+    int rc;
+
+    rc = sqlite3_exec(db, "BEGIN TRANSACTION", NULL, NULL, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "BEGIN TRANSACTION failed : %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        exit(1) ;
+    }
+}
+
+static void rollback_transaction(char *message, sqlite3 *db)
+{
+    int rc;
+
+    fprintf(stderr, "%s %s \n", message, sqlite3_errmsg(db));
+    rc = sqlite3_exec(db, "ROLLBACK", NULL, NULL, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "ROLLBACK failed : %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+        exit(1) ;
+    }
+}
+
+
 int main(int argc, char **argv) {
     
     sqlite3 *db;
+    int rc;
     sqlite3_stmt *res;
     char *dbname; 
     const char	*tail;
@@ -34,28 +61,34 @@ int main(int argc, char **argv) {
     /*
      * connect to database 
      */
-    int rc = sqlite3_open(dbname, &db);
+    rc = sqlite3_open(dbname, &db);
     if (rc != SQLITE_OK) {
         fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
         return 1;
     }
     
     rc = sqlite3_prepare_v2(db, "SELECT SQLITE_VERSION()", -1, &res, 0);    
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "Failed to fetch data: %s\n", sqlite3_errmsg(db));
+        fprintf(stderr, "Failed to check SQLite version: %s\n", sqlite3_errmsg(db));
         sqlite3_close(db);
         return 1;
     }    
     
     rc = sqlite3_step(res);
     if (rc == SQLITE_ROW) {
-        printf("Connected to database %s version %s\n", dbname, sqlite3_column_text(res, 0));
+        printf("Connected to database: %s SQLite version %s\n", dbname, sqlite3_column_text(res, 0));
+    } else {
+        fprintf(stderr, "Failed to get SQLite version: %s\n", sqlite3_errmsg(db));
+        sqlite3_close(db);
+	return 1;
     }
     
    /*
     * insert question
     */ 
+
+    begin_transaction(db);
+
     printf("Enter question:");
     col1 = (char *)malloc(QUESTION_MAX_LENGTH);
     scanf("%s", col1);
@@ -68,31 +101,25 @@ int main(int argc, char **argv) {
 
     rc = sqlite3_prepare_v2(db, "INSERT INTO q(question, solution) VALUES(?1, ?2)", -1, &res, &tail);
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "Failed to prepare INSERT INTO q: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
-        return 1;
+	rollback_transaction("Failed to prepare INSERT INTO q", db);
 	}
 	
     rc = sqlite3_bind_text(res, 1, col1, -1, SQLITE_STATIC); 
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "Failed to bind INSERT param. 1: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
-        return 1;
+        rollback_transaction("Failed to bind INSERT param. 1", db);
 	}
 
     rc = sqlite3_bind_int(res, 2, col2); 
     if (rc != SQLITE_OK) {
-        fprintf(stderr, "Failed to bind INSERT param. 2: %s\n", sqlite3_errmsg(db));
-        sqlite3_close(db);
-        return 1;
+        rollback_transaction("Failed to bind INSERT param. 2", db);
 	}
 
     rc = sqlite3_step(res);
-    if (rc == SQLITE_OK) {
-        printf("INSERT INTO q: OK\n");
+    if (rc != SQLITE_DONE) {
+         rollback_transaction("Failed to INSERT INTO q", db);
     }
     last_id = sqlite3_last_insert_rowid(db);
-    printf("The last id. of the inserted row is %d\n", last_id);
+    printf("The last question id. is: %d\n", last_id);
 
     /*
      * insert answers
@@ -103,39 +130,40 @@ int main(int argc, char **argv) {
         rc = sqlite3_prepare_v2(db, "INSERT INTO a(id, no, answer) VALUES(?1, ?2, ?3)", 
 			             -1, &res, &tail);
         if (rc != SQLITE_OK) {
-          fprintf(stderr, "Failed to prepare INSERT INTO a: %s\n", sqlite3_errmsg(db));
-          sqlite3_close(db);
-          return 1;
+          rollback_transaction("Failed to prepare INSERT INTO a", db);
 	}
 
         rc = sqlite3_bind_int(res, 1, last_id); 
         if (rc != SQLITE_OK) {
-         fprintf(stderr, "Failed to bind INSERT param. 1: %s\n", sqlite3_errmsg(db));
-         sqlite3_close(db);
-         return 1;
+          rollback_transaction("Failed to bind INSERT param. 1", db);
 	}
 
         rc = sqlite3_bind_int(res, 2, i); 
         if (rc != SQLITE_OK) {
-         fprintf(stderr, "Failed to bind INSERT param. 2: %s\n", sqlite3_errmsg(db));
-         sqlite3_close(db);
-         return 1;
+         rollback_transaction("Failed to bind INSERT param. 2", db);
 	}
 
     	printf("Enter answser:");
         scanf("%s", col3);
         rc = sqlite3_bind_text(res, 3, col3, -1, SQLITE_STATIC); 
         if (rc != SQLITE_OK) {
-         fprintf(stderr, "Failed to bind INSERT param. 3: %s\n", sqlite3_errmsg(db));
-         sqlite3_close(db);
-         return 1;
+         rollback_transaction("Failed to bind INSERT param. 3", db);
 	}
 
         rc = sqlite3_step(res);
-        if (rc == SQLITE_OK) {
-          printf("INSERT INTO q: OK\n");
+        if (rc != SQLITE_DONE) {
+         rollback_transaction("Failed to INSERT INTO a", db);
         }
     }
+
+    rc = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
+    if (rc != SQLITE_OK) {
+        rollback_transaction("COMMIT failed", db);
+        sqlite3_close(db);
+        return 1;
+    }
+    printf("Transaction committed \n") ;
+
 
     /*
      * exit
