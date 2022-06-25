@@ -8,9 +8,13 @@
 #include <sqlite3.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-#define QUESTION_MAX_LENGTH	80
-#define	ANSWER_MAX_LENGTH	80
+/*
+ * maximum length include '\0'
+ */
+#define QUESTION_MAX_LENGTH	6	
+#define	ANSWER_MAX_LENGTH	6	
 #define MAX_ANSWER_NB		3
 
 static void begin_transaction(sqlite3 *db)
@@ -38,6 +42,24 @@ static void rollback_transaction(char *message, sqlite3 *db)
     }
 }
 
+static char *fgets_with_newline(char *buf, int size)
+{
+	char c;
+
+    	/*
+	 * fgets(s, n, stdin) reads at most n-1 characters
+	*/
+	if (fgets(buf, size, stdin) != NULL) {
+	    if (buf[strlen(buf) - 1] != '\n') {
+	         do {
+			c = fgetc(stdin);
+		 } while (c != '\n');
+	    	return buf;
+	    } else return buf;
+
+	} else	return NULL;
+}
+
 
 int main(int argc, char **argv) {
     
@@ -47,6 +69,7 @@ int main(int argc, char **argv) {
     char *dbname; 
     const char	*tail;
     char *col1; 
+    char icol2[2] ;
     int	col2;
     int	last_id = 0;
     int i;
@@ -87,17 +110,28 @@ int main(int argc, char **argv) {
     * insert question
     */ 
 
-restart:
     begin_transaction(db);
+restart:
 
     printf("Enter question:");
     col1 = (char *)malloc(QUESTION_MAX_LENGTH);
-    scanf("%s", col1);
+    if (col1 == NULL) {
+	    fprintf(stderr, "malloc failed");
+	    goto restart;
+    }
+    if (fgets_with_newline(col1, QUESTION_MAX_LENGTH) == NULL) {
+	    fprintf(stderr, "fgets col1 failed");
+	    goto restart;
+    }
     printf("Enter solution no:");
-    scanf("%d", &col2);
+    if (fgets_with_newline(icol2, 3) == NULL) {
+	    fprintf(stderr, "fgets icol2 failed");
+	    goto restart;
+    }
+    col2 = strtol(icol2, NULL, 10);
     if ( col2 > MAX_ANSWER_NB) {
-	    fprintf(stderr, "Solution no cannot be greater than %d \n", MAX_ANSWER_NB);
-	    return 1;
+	 fprintf(stderr, "solution number too big \n");
+         goto restart;
     }
 
     rc = sqlite3_prepare_v2(db, "INSERT INTO q(question, solution) VALUES(?1, ?2)", -1, &res, &tail);
@@ -122,9 +156,9 @@ restart:
     if (rc != SQLITE_DONE) {
          rollback_transaction("Failed to INSERT INTO q", db);
 	goto restart;
-    }
+        }
     last_id = sqlite3_last_insert_rowid(db);
-    printf("The last question id. is: %d\n", last_id);
+    printf("=> the last question id. is: %d\n", last_id);
 
     rc = sqlite3_finalize(res);
     if (rc != SQLITE_OK) {
@@ -139,8 +173,7 @@ restart:
     col3 = (char *)malloc(ANSWER_MAX_LENGTH);
     for (i = 1 ; i <= MAX_ANSWER_NB; i++)
     {
-        rc = sqlite3_prepare_v2(db, "INSERT INTO a(id, no, answer) VALUES(?1, ?2, ?3)", 
-			             -1, &res, &tail);
+        rc = sqlite3_prepare_v2(db, "INSERT INTO a(id, no, answer) VALUES(?1, ?2, ?3)", -1, &res, &tail);
         if (rc != SQLITE_OK) {
           rollback_transaction("Failed to prepare INSERT INTO a", db);
 	  goto restart;
@@ -158,8 +191,8 @@ restart:
 	 goto restart;
 	}
 
-    	printf("Enter answser:");
-        scanf("%s", col3);
+    	printf("Enter answser nr %d:", i);
+	fgets_with_newline(col3, ANSWER_MAX_LENGTH);
         rc = sqlite3_bind_text(res, 3, col3, -1, SQLITE_STATIC); 
         if (rc != SQLITE_OK) {
          rollback_transaction("Failed to bind INSERT param. 3", db);
