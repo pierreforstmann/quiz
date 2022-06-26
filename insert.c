@@ -62,7 +62,10 @@ static char *fgets_with_newline(char *buf, int size)
 			c = fgetc(stdin);
 		 } while (c != '\n');
 	    	return buf;
-	    } else return buf;
+	    } else {
+		    buf[strlen(buf) - 1 ] = '\0';
+		    return buf;
+	    }
 
 	} else	return NULL;
 }
