@@ -9,13 +9,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
+#include <limits.h>
 
 /*
  * maximum length include '\0'
  */
-#define QUESTION_MAX_LENGTH	6	
-#define	ANSWER_MAX_LENGTH	6	
-#define MAX_ANSWER_NB		3
+#define QUESTION_MAX_LENGTH	60	
+#define	ANSWER_MAX_LENGTH	60	
+#define MAX_ANSWER_NB		3	
 
 static void begin_transaction(sqlite3 *db)
 {
@@ -46,9 +48,14 @@ static char *fgets_with_newline(char *buf, int size)
 {
 	char c;
 
-    	/*
-	 * fgets(s, n, stdin) reads at most n-1 characters
-	*/
+    	/* 
+	 * fgets(s, n, stdin) reads at most n-1 characters.
+	 *
+	 * Reading until newline character is found
+	 * and ignoring corresponding data if input data has more
+	 * than n-1 characters. This is needed so that multiple fgets 
+	 * work correctly (i.e. each fgets processes its newline).
+	 */
 	if (fgets(buf, size, stdin) != NULL) {
 	    if (buf[strlen(buf) - 1] != '\n') {
 	         do {
@@ -74,6 +81,7 @@ int main(int argc, char **argv) {
     int	last_id = 0;
     int i;
     char *col3;
+    char *endptr;
 
     if (argc != 2) {
         fprintf(stderr, "usage: insert <database name> \n");
@@ -123,12 +131,26 @@ restart:
 	    fprintf(stderr, "fgets col1 failed");
 	    goto restart;
     }
-    printf("Enter solution no:");
+    printf("Enter solution number:");
     if (fgets_with_newline(icol2, 3) == NULL) {
 	    fprintf(stderr, "fgets icol2 failed");
 	    goto restart;
     }
-    col2 = strtol(icol2, NULL, 10);
+    errno = 0;
+    col2 = strtol(icol2, &endptr, 10);
+    if ((errno == ERANGE && (col2 == LONG_MAX || col2 == LONG_MIN))
+               || (errno != 0 && col2 == 0)) {
+	 fprintf(stderr, "solution number is not a valid number \n");
+         goto restart;
+    }
+    if (icol2 == endptr || *endptr != '\0') {
+	 fprintf(stderr, "solution number is not a valid number \n");
+         goto restart;
+    }
+    if ( col2 <= 0) {
+	 fprintf(stderr, "solution number must be >= 1 \n");
+         goto restart;
+    }
     if ( col2 > MAX_ANSWER_NB) {
 	 fprintf(stderr, "solution number too big \n");
          goto restart;
@@ -191,7 +213,7 @@ restart:
 	 goto restart;
 	}
 
-    	printf("Enter answser nr %d:", i);
+    	printf("Enter answer number %d:", i);
 	fgets_with_newline(col3, ANSWER_MAX_LENGTH);
         rc = sqlite3_bind_text(res, 3, col3, -1, SQLITE_STATIC); 
         if (rc != SQLITE_OK) {
