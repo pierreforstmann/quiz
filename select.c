@@ -81,10 +81,10 @@ int main(int argc, char **argv) {
     char buf[3];
     char anrbuf[3] ;
     int	anr;
-    int i;
     char *endptr;
     int qnr = 1;
     int expected_anr = 1;
+    int qfound = 0;
 
     if (argc != 3) {
         fprintf(stderr, "usage: select  <database name> <question id>\n");
@@ -130,6 +130,7 @@ restart_after_transaction:
     * retrieve question
     */ 
 
+    qfound = 0;
     rc = sqlite3_prepare_v2(db, "SELECT question, solution FROM q WHERE id = ?1", -1, &res, &tail);
     if (rc != SQLITE_OK) {
 	rollback_transaction("Failed to prepare SELECT ... FROM q", db);
@@ -147,6 +148,7 @@ restart_after_transaction:
        if (rc == SQLITE_ROW) {
 	   printf("Question: %s \n", sqlite3_column_text(res, 0));
 	   expected_anr = sqlite3_column_int(res, 1);
+	   qfound = 1;
        }
        else if (rc != SQLITE_DONE) {
            rollback_transaction("Failed to retrieve rows from table q", db);
@@ -155,6 +157,12 @@ restart_after_transaction:
        else break;
      }	
 
+     if (qfound == 0) {
+	fprintf(stderr, "Question %d not found \n", qnr);
+	rollback_transaction("No data found", db);
+	sqlite3_close(db);
+	exit(1);
+     }
     /*
      * retrieve answers
      */
