@@ -2,11 +2,13 @@
 # quiz Makefile
 #
 #
-all: insert 
+all: insert select
 	chmod u+x create.sh
 insert: insert.c
 	$(CC) -std=gnu99 -Wall -o $@ -lsqlite3 $<
+select: select.c
+	$(CC) -std=gnu99 -Wall -o $@ -lsqlite3 $<
 clean: 
-	rm -f insert 
+	rm -f insert select
 
 
