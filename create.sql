@@ -1,5 +1,7 @@
 --
--- quiz.sql
+-- create.sql
+--
+-- create schema objects
 --
 drop table if exists a;
 drop table if exists q;
