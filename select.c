@@ -131,7 +131,7 @@ restart_after_transaction:
     */ 
 
     qfound = 0;
-    rc = sqlite3_prepare_v2(db, "SELECT question, solution FROM q WHERE id = ?1", -1, &res, &tail);
+    rc = sqlite3_prepare_v2(db, "SELECT question FROM q WHERE id = ?1", -1, &res, &tail);
     if (rc != SQLITE_OK) {
 	rollback_transaction("Failed to prepare SELECT ... FROM q", db);
 	goto restart_before_transaction;
@@ -147,7 +147,6 @@ restart_after_transaction:
        rc = sqlite3_step(res);
        if (rc == SQLITE_ROW) {
 	   printf("Question: %s \n", sqlite3_column_text(res, 0));
-	   expected_anr = sqlite3_column_int(res, 1);
 	   qfound = 1;
        }
        else if (rc != SQLITE_DONE) {
@@ -167,7 +166,7 @@ restart_after_transaction:
      * retrieve answers
      */
 
-    rc = sqlite3_prepare_v2(db, "SELECT no, answer FROM a WHERE id = ?1", -1, &res, &tail);
+    rc = sqlite3_prepare_v2(db, "SELECT no, answer, solution FROM a WHERE id = ?1", -1, &res, &tail);
     if (rc != SQLITE_OK) {
 	rollback_transaction("Failed to prepare SELECT ... FROM a", db);
 	goto restart_before_transaction;
@@ -183,6 +182,8 @@ restart_after_transaction:
        rc = sqlite3_step(res);
        if (rc == SQLITE_ROW) {
            printf("Answer %d: %s \n", sqlite3_column_int(res, 0), sqlite3_column_text(res,1));
+	   if (strcmp((const char *)sqlite3_column_text(res,2),"y") == 0)
+		   expected_anr = sqlite3_column_int(res,0);
        }
        else if (rc != SQLITE_DONE) {
            rollback_transaction("Failed to retrieve rows from table a", db);

@@ -136,35 +136,8 @@ restart_after_transaction:
 	    fprintf(stderr, "fgets col1 failed");
 	    goto restart_after_transaction;
     }
-    printf("Enter solution number:");
-    if (fgets_with_newline(icol2, 3) == NULL) {
-	    fprintf(stderr, "fgets icol2 failed");
-	    goto restart_after_transaction;
-    }
-    errno = 0;
-    endptr = icol2buf;
-    col2 = strtol(icol2, &endptr, 10);
-    if ((errno == ERANGE && (col2 == LONG_MAX || col2 == LONG_MIN))
-               || (errno != 0 && col2 == 0)) {
-	 fprintf(stderr, "solution number is not a valid number (errno)\n");
-         goto restart_after_transaction;
-    }
-    if (*endptr == '\n')
-	    *endptr = '\0';
-    if (icol2 == endptr || *endptr != '\0') {
-	 fprintf(stderr, "solution number is not a valid number (endptr)\n");
-         goto restart_after_transaction;
-    }
-    if ( col2 <= 0) {
-	 fprintf(stderr, "solution number must be >= 1 \n");
-         goto restart_after_transaction;
-    }
-    if ( col2 > MAX_ANSWER_NB) {
-	 fprintf(stderr, "solution number too big \n");
-         goto restart_after_transaction;
-    }
 
-    rc = sqlite3_prepare_v2(db, "INSERT INTO q(question, solution) VALUES(?1, ?2)", -1, &res, &tail);
+    rc = sqlite3_prepare_v2(db, "INSERT INTO q(question) VALUES(?1) ", -1, &res, &tail);
     if (rc != SQLITE_OK) {
 	rollback_transaction("Failed to prepare INSERT INTO q", db);
 	goto restart_before_transaction;
@@ -173,12 +146,6 @@ restart_after_transaction:
     rc = sqlite3_bind_text(res, 1, col1, -1, SQLITE_STATIC); 
     if (rc != SQLITE_OK) {
         rollback_transaction("Failed to bind INSERT param. 1", db);
-	goto restart_before_transaction;
-	}
-
-    rc = sqlite3_bind_int(res, 2, col2); 
-    if (rc != SQLITE_OK) {
-        rollback_transaction("Failed to bind INSERT param. 2", db);
 	goto restart_before_transaction;
 	}
 
@@ -203,12 +170,12 @@ restart_after_transaction:
     col3 = (char *)malloc(ANSWER_MAX_LENGTH);
     for (i = 1 ; i <= MAX_ANSWER_NB; i++)
     {
+
         rc = sqlite3_prepare_v2(db, "INSERT INTO a(id, no, answer) VALUES(?1, ?2, ?3)", -1, &res, &tail);
         if (rc != SQLITE_OK) {
           rollback_transaction("Failed to prepare INSERT INTO a", db);
 	  goto restart_before_transaction;
 	}
-
         rc = sqlite3_bind_int(res, 1, last_id); 
         if (rc != SQLITE_OK) {
           rollback_transaction("Failed to bind INSERT param. 1", db);
@@ -235,6 +202,61 @@ restart_after_transaction:
 	  goto restart_before_transaction;
         }
     }
+
+    printf("Enter solution number:");
+    if (fgets_with_newline(icol2, 3) == NULL) {
+	    fprintf(stderr, "fgets icol2 failed");
+	    goto restart_after_transaction;
+    }
+
+    errno = 0;
+    endptr = icol2buf;
+    col2 = strtol(icol2, &endptr, 10);
+    if ((errno == ERANGE && (col2 == LONG_MAX || col2 == LONG_MIN))
+               || (errno != 0 && col2 == 0)) {
+	 fprintf(stderr, "solution number is not a valid number (errno)\n");
+         goto restart_after_transaction;
+    }
+    if (*endptr == '\n')
+	    *endptr = '\0';
+    if (icol2 == endptr || *endptr != '\0') {
+	 fprintf(stderr, "solution number is not a valid number (endptr)\n");
+         goto restart_after_transaction;
+    }
+    if ( col2 <= 0) {
+	 fprintf(stderr, "solution number must be >= 1 \n");
+         goto restart_after_transaction;
+    }
+    if ( col2 > MAX_ANSWER_NB) {
+	 fprintf(stderr, "solution number too big \n");
+         goto restart_after_transaction;
+    }
+
+    rc = sqlite3_prepare_v2(db, "UPDATE a set solution ='y' where id =?1 and no=?2", -1, &res, &tail);
+    if (rc != SQLITE_OK) {
+        rollback_transaction("Failed to prepare UPDATE a", db);
+        goto restart_before_transaction;
+    }
+    rc = sqlite3_bind_int(res, 1, last_id); 
+    if (rc != SQLITE_OK) {
+          rollback_transaction("Failed to bind UPDATE param. 1", db);
+	  goto restart_before_transaction;
+    }
+    rc = sqlite3_bind_int(res, 2, col2); 
+    if (rc != SQLITE_OK) {
+          rollback_transaction("Failed to bind UPDATE param. 2", db);
+	  goto restart_before_transaction;
+    }
+    rc = sqlite3_step(res);
+    if (rc != SQLITE_DONE) {
+       rollback_transaction("Failed to INSERT INTO a", db);
+       goto restart_before_transaction;
+     }
+
+
+    /*
+     *
+     */
     rc  = sqlite3_finalize(res);
     if (rc != SQLITE_OK) {
          rollback_transaction("Failed to delete prepared statement INSERT INTO a", db);
@@ -248,8 +270,8 @@ restart_after_transaction:
         sqlite3_close(db);
         return 1;
     }
-    printf("Transaction committed \n") ;
 
+    printf("Transaction committed \n") ;
 
     /*
      * exit
