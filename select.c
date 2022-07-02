@@ -252,7 +252,7 @@ restart_after_transaction:
      */
 
     sqlite3_close(db);
-    printf("Disconneced from database.\n") ;
+    printf("Disconnected from database.\n") ;
     
     return 0;
 }
