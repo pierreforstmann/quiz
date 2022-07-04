@@ -20,8 +20,14 @@ static void exit_ko(void)
     exit(1);
 }
 
-int callback(void *p_arg, int argc, char **argv, char **column_names) {
+int callback(void *p_arg, int argc, char **argv, char **col_names) {
 
+    int i;
+
+    for(i = 0; i < argc; i++) {
+      printf("%s: %s\n", col_names[i], argv[i] ? argv[i] : "NULL");
+    }
+    printf("\n");
     row_count++;
     return 0;
 }
@@ -74,7 +80,7 @@ int main(int argc, char **argv) {
 	fprintf(stderr, "Failed to prepare SELECT ... FROM q \n");
 	exit_ko();
     }
-    printf("table q: structure OK\n"); 
+    printf("=> table q: structure OK\n"); 
    
     /*
      * check a  structure
@@ -90,11 +96,12 @@ int main(int argc, char **argv) {
     if (rc != SQLITE_OK) {
          fprintf(stderr, "Failed to delete prepared statement SELECT ...\n" );
     }
-    printf("table a: structure OK\n"); 
+    printf("=> table a: structure OK\n"); 
 
     /*
      * check q data
      */
+    printf("=> table q: checking rows ...\n"); 
     row_count = 0; 
     rc =  sqlite3_exec(db, "select id, question from q" , 
 		            callback , NULL, &errmsg);
@@ -104,11 +111,12 @@ int main(int argc, char **argv) {
        sqlite3_free(errmsg);
        exit_ko();
     }
-    printf("table q: %d rows checked OK \n", row_count); 
+    printf("\n=> ... table q: %d rows checked OK \n\n", row_count); 
 
     /*
      * check a data
      */
+    printf("=> table a: checking rows ...\n"); 
     row_count = 0; 
     rc =  sqlite3_exec(db, "select id, no, answer, solution from a" , 
 		            callback , NULL, &errmsg);
@@ -118,7 +126,7 @@ int main(int argc, char **argv) {
        sqlite3_free(errmsg);
        exit_ko();
     }
-    printf("table a: %d rows checked OK \n", row_count); 
+    printf("=> ... table a: %d rows checked OK \n\n", row_count); 
     /*
      * exit
      */
