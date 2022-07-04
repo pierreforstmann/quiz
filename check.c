@@ -12,10 +12,18 @@
 #include <errno.h>
 #include <limits.h>
 
+static int row_count = 0;
+
 static void exit_ko(void) 
 {
     fprintf(stderr, "Database check: KO \n");
     exit(1);
+}
+
+int callback(void *p_arg, int argc, char **argv, char **column_names) {
+
+    row_count++;
+    return 0;
 }
 
 int main(int argc, char **argv) {
@@ -24,7 +32,7 @@ int main(int argc, char **argv) {
     int rc;
     const char *tail;
     sqlite3_stmt *res;
-    char *dbname; 
+    char *dbname, *errmsg;
 
     if (argc != 2) {
         fprintf(stderr, "usage: check  <database name> \n");
@@ -58,7 +66,7 @@ int main(int argc, char **argv) {
     }
    
    /*
-    * check q
+    * check q structure
     */ 
 
     rc = sqlite3_prepare_v2(db, "SELECT id, question FROM q WHERE 1=0", -1, &res, &tail);
@@ -66,9 +74,10 @@ int main(int argc, char **argv) {
 	fprintf(stderr, "Failed to prepare SELECT ... FROM q \n");
 	exit_ko();
     }
+    printf("table q: structure OK\n"); 
    
     /*
-     * check a 
+     * check a  structure
      */
 
     rc = sqlite3_prepare_v2(db, "SELECT id, no, answer, solution FROM a WHERE 1 = 0", -1, &res, &tail);
@@ -81,8 +90,35 @@ int main(int argc, char **argv) {
     if (rc != SQLITE_OK) {
          fprintf(stderr, "Failed to delete prepared statement SELECT ...\n" );
     }
+    printf("table a: structure OK\n"); 
 
+    /*
+     * check q data
+     */
+    row_count = 0; 
+    rc =  sqlite3_exec(db, "select id, question from q" , 
+		            callback , NULL, &errmsg);
+    if (rc != SQLITE_OK) {
+       printf("Error executing query: %s \n", sqlite3_errstr(rc));
+       printf("Error executing query: %s \n", errmsg);
+       sqlite3_free(errmsg);
+       exit_ko();
+    }
+    printf("table q: %d rows checked OK \n", row_count); 
 
+    /*
+     * check a data
+     */
+    row_count = 0; 
+    rc =  sqlite3_exec(db, "select id, no, answer, solution from a" , 
+		            callback , NULL, &errmsg);
+    if (rc != SQLITE_OK) {
+       printf("Error executing query: %s \n", sqlite3_errstr(rc));
+       printf("Error executing query: %s \n", errmsg);
+       sqlite3_free(errmsg);
+       exit_ko();
+    }
+    printf("table a: %d rows checked OK \n", row_count); 
     /*
      * exit
      */
